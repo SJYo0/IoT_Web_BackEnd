@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import Auth from "./Auth";
-import Signup from "./Signup";
-import Weather from "./Weather";
-import { apiFetch } from "./api";
+import React, { useState, useEffect } from 'react';
+import {BrowserRouter, Navigate, Routes, Route} from 'react-router-dom';
+
+import Sidebar from './sidebar/sidebar';
+import DeviceApprovePage from './registerDevice/DeviceApprovePage';
+
+import Auth from './Auth/Auth';
+import Signup from './Auth/Signup';
+import Weather from './DashBoard/Weather';
+import { apiFetch } from "./Auth/api";
 
 function ProtectedRoute({ children }) {
   const [status, setStatus] = useState("loading");
@@ -40,18 +44,37 @@ function ProtectedRoute({ children }) {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Auth />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/weather"
-          element={
-            <ProtectedRoute>
-              <Weather />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      
+      {/* 전체화면 컨테이너 */}
+      <div className="flex w-full h-screen overflow-hidden bg-[#262a2b]">
+        
+        {/* 좌측 고정 사이드 바 */}
+        <Sidebar />
+
+        {/* 우측 메인 영역 */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* URL에 따라 화면 바꾸기 */}
+          <Routes>
+
+            <Route path="/device/approveReq" element={<DeviceApprovePage />} />
+
+            <Route path="/" element={<Auth />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route
+              path="/weather"
+              element={
+                <ProtectedRoute>
+                  <Weather />
+                </ProtectedRoute>
+              }
+            />
+
+          </Routes>
+
+        </div>
+
+      </div>
     </BrowserRouter>
   );
 }
