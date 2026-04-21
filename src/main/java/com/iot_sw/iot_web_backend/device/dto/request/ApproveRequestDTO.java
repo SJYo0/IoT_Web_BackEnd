@@ -14,4 +14,5 @@ public class ApproveRequestDTO {
     private String macId;
     private String name;
     private String location;
+
 }
