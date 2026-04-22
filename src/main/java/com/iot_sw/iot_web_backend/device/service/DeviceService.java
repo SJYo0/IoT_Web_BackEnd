@@ -22,11 +22,11 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final MqttGateway mqttGateway;
 
-    // 1. 신규 기기 등록 (MqttService에서 호출됨)
+    // 신규 기기 등록 (MqttService에서 호출됨)
     @Transactional
     public void registerPendingDevice(RegisterRequestDTO requestDTO) {
 
-        // 1-1. DB에 아예 없는 완전 신규 기기인 경우
+        // DB에 아예 없는 완전 신규 기기인 경우
         if (!deviceRepository.existsByMacId(requestDTO.getMacId())) {
             Device newDevice = new Device();
             newDevice.setMacId(requestDTO.getMacId());
@@ -38,19 +38,19 @@ public class DeviceService {
             deviceRepository.save(newDevice);
             log.info("새 기기 연결 요청 (승인 대기): {}", requestDTO.getMacId());
         }
-        // 1-2. 이미 DB에 있는 기기인 경우
+        // 이미 DB에 있고 승인했던 기기인 경우 자동 재승인 (변수에 의한 기기의 재접속을 고려)
         else {
             Device existingDevice = deviceRepository.findByMacId(requestDTO.getMacId()).get();
 
             if (existingDevice.getStatus() == DeviceStatus.ONLINE || existingDevice.getStatus() == DeviceStatus.OFFLINE) {
                 log.info("이미 승인된 기기의 재접속 요청입니다. 허가증을 재발급합니다: {}", requestDTO.getMacId());
 
-                // 다시 ONLINE 상태로 갱신
+                // LWT 메시지를 고려하여 다시 ONLINE 상태로 갱신
                 existingDevice.setStatus(DeviceStatus.ONLINE);
                 existingDevice.setIpAddress(requestDTO.getIpAddress()); // IP가 바뀌었을 수 있으니 갱신
                 deviceRepository.save(existingDevice);
 
-                // Response 를 파이로 다시 쏘기
+                // Response를 파이로 다시 쏘기
                 String topic = "provisioning/response/" + requestDTO.getMacId();
                 String approvalMsg = String.format(
                         "{\"status\": \"APPROVED\", \"device_id\": %d, \"name\": \"%s\"}",
@@ -59,6 +59,7 @@ public class DeviceService {
                 mqttGateway.sendToMqtt(approvalMsg, topic);
             } else if (existingDevice.getStatus() == DeviceStatus.PENDING) {
                 log.info("아직 관리자가 승인하지 않은 기기입니다. 대기 중: {}", requestDTO.getMacId());
+            // 거절기기가 재접속 시 대기중으로 상태 변경
             } else if (existingDevice.getStatus() == DeviceStatus.REJECTED) {
                 existingDevice.setStatus(DeviceStatus.PENDING);
                 existingDevice.setIpAddress(requestDTO.getIpAddress());
@@ -82,7 +83,7 @@ public class DeviceService {
         }
     }
 
-    // 2. 기기 승인
+    // 기기 승인 로직
     @Transactional
     public ApproveResponseDTO approveDevice(ApproveRequestDTO requestDTO) {
         Device device = deviceRepository.findByMacId(requestDTO.getMacId())
@@ -111,6 +112,7 @@ public class DeviceService {
                 .build();
     }
 
+    // 기기 등록 거절 로직
     @Transactional
     public void rejectDevice(RejectRequestDTO requestDTO) {
         Device device = deviceRepository.findByMacId(requestDTO.getMacId())

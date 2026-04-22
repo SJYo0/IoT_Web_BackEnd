@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/devices")
@@ -23,7 +22,7 @@ public class DeviceController {
     private final DeviceRepository deviceRepository;
     private final DeviceService deviceService;
 
-    // 1. 승인 대기 중(PENDING)인 기기 목록 조회
+    // 승인 대기 중(PENDING)인 기기 목록 조회
     @GetMapping("/pending")
     public List<Device> getPendingDevices() {
         return deviceRepository.findByStatus(DeviceStatus.PENDING);
