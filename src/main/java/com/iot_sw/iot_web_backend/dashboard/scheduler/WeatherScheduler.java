@@ -13,7 +13,7 @@ public class WeatherScheduler {
 
     private final PublicApiService apiService;
 
-    @Scheduled(cron = "0 0 * * * *")
+    @Scheduled(cron = "${weather.fetch.cron:0 0 * * * *}")
     public void run() {
         apiService.fetchAndSave();
     }
