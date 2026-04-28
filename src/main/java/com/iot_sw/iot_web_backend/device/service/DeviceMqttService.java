@@ -30,7 +30,7 @@ public class DeviceMqttService {
     private final SensorRepository sensorRepository;
     private final ObjectMapper objectMapper;
 
-    private final List<SensorTelemetry> buffer = Collections.synchronizedList(new ArrayList<>());
+    private final List<SensorTelemetry> buffer = Collections.synchronizedList(new ArrayList<>()); // 안전 큐 느낌
 
     // 구독 채널에 들어온 메시지를 처리
     @ServiceActivator(inputChannel = "mqttInboundChannel")
@@ -64,24 +64,19 @@ public class DeviceMqttService {
                 }
             }
             else if (topic.startsWith("gateway/") && topic.endsWith("/telemetry")) {
-                // 1. 토픽에서 MAC 주소 추출 (gateway/{mac_address}/telemetry)
+
                 String[] topicParts = topic.split("/");
                 if (topicParts.length == 3) {
                     String macAddress = topicParts[1];
 
-                    // 2. JSON Payload를 DTO로 한 번에 직렬화 매핑 (JsonNode 탐색보다 훨씬 빠르고 안전함)
                     SensorDataDTO dto = objectMapper.readValue(payload, SensorDataDTO.class);
 
                     log.info("[센서 수신] MAC: {}, 온도: {}C, TVOC: {}", macAddress, dto.getTemperature(), dto.getTvoc());
 
-                    // 3. TODO: 센서 데이터 DB 저장 로직 위임
-                    // PartitionManagerService에 위임 예정
-                    // sensorService.saveTelemetryData(macAddress, sensorData);
-
-                    // 1. 엔티티 변환 (isNew는 기본값 true)
+                    // DB 배치 인서트 로직
                     SensorTelemetry entity = SensorTelemetry.builder()
                             .macAddress(macAddress)
-                            .measuredAt(dto.getMeasuredAt()) // DTO에서 구현한 변환 메서드 활용
+                            .measuredAt(dto.getMeasuredAt()) // 날짜 자료형 변환
                             .temperature(BigDecimal.valueOf(dto.getTemperature()))
                             .humidity(BigDecimal.valueOf(dto.getHumidity()))
                             .pressure(BigDecimal.valueOf(dto.getPressure()))
@@ -90,10 +85,9 @@ public class DeviceMqttService {
                             .flameValue(dto.getFlameValue())
                             .build();
 
-                    // 2. 버퍼에 담기
                     buffer.add(entity);
 
-                    // 3. (옵션) 데이터가 너무 많이 쌓이는 것을 방지하기 위해 60개 넘으면 즉시 플러시
+                    // 센서 데이터 60개 이상 쌓이면 바로 인서트
                     if (buffer.size() >= 60) {
                         flushBuffer();
                     }
@@ -107,13 +101,13 @@ public class DeviceMqttService {
         }
     }
 
-    // 💡 매 1분(60,000ms)마다 실행되는 스케줄러
+    // 1분마다 자동 배치 인서트 동작
     @Scheduled(fixedRate = 60000)
     @Transactional
     public void flushBuffer() {
         if (buffer.isEmpty()) return;
 
-        // 버퍼 복사 후 비우기 (데이터 유실 방지)
+        // 버퍼 복사
         List<SensorTelemetry> toSave;
         synchronized (buffer) {
             toSave = new ArrayList<>(buffer);
@@ -121,11 +115,11 @@ public class DeviceMqttService {
         }
 
         try {
-            log.info("[Batch] {}개의 데이터를 MariaDB에 배치 인서트 중...", toSave.size());
-            sensorRepository.saveAll(toSave); // 여기서 rewriteBatchedStatements가 작동합니다!
-            log.info("[Batch] 저장 완료.");
+            log.info("[DB] {}개의 데이터를 MariaDB에 배치 인서트 시작", toSave.size());
+            sensorRepository.saveAll(toSave);
+            log.info("[DB] 배치 인서트 성공.");
         } catch (Exception e) {
-            log.error("[Batch] 저장 실패: {}", e.getMessage());
+            log.error("[DB] 배치 인서트 실패: {}", e.getMessage());
         }
     }
 }

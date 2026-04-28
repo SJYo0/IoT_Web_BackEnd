@@ -38,10 +38,9 @@ public class PartitionManagerService {
                     partitionName, lessThanValue
             );
             jdbcTemplate.execute(sql);
-            log.info("[Partition] 파티션 생성 성공: {}", partitionName);
+            log.info("[DB] 파티션 생성 성공: {}", partitionName);
         } catch (Exception e) {
-            // 이미 파티션이 존재하는 경우 에러가 나므로 무시 처리
-            log.debug("[Partition] 파티션이 이미 존재합니다: {}", partitionName);
+            log.debug("[DB] 파티션이 이미 존재합니다: {}", partitionName);
         }
     }
 
@@ -53,7 +52,7 @@ public class PartitionManagerService {
     }
 
     private void createFuturePartition() {
-        LocalDate targetDate = LocalDate.now().plusDays(2); // 내일 모레 기준
+        LocalDate targetDate = LocalDate.now().plusDays(2);
         String partitionName = "p_" + targetDate.minusDays(1).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String lessThanValue = targetDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + " 00:00:00";
 
@@ -65,9 +64,9 @@ public class PartitionManagerService {
                     partitionName, lessThanValue
             );
             jdbcTemplate.execute(sql);
-            log.info("[Partition] 새로운 파티션 생성 완료: {}", partitionName);
+            log.info("[DB] 새로운 파티션 생성 완료: {}", partitionName);
         } catch (Exception e) {
-            log.warn("[Partition] 파티션 생성 건너뜀 (이미 존재할 가능성 높음)");
+            log.warn("[DB] 파티션 생성 건너뜀");
         }
     }
 
@@ -79,9 +78,9 @@ public class PartitionManagerService {
             // 파티션 존재 여부 확인 후 드랍
             String sql = "ALTER TABLE sensor_telemetry DROP PARTITION " + partitionName;
             jdbcTemplate.execute(sql);
-            log.info("[Partition] 오래된 파티션 삭제 완료: {}", partitionName);
+            log.info("[DB] 오래된 파티션 삭제 완료: {}", partitionName);
         } catch (Exception e) {
-            log.error("[Partition] 파티션 삭제 실패 (존재하지 않거나 기타 오류): {}", partitionName);
+            log.error("[DB] 파티션 삭제 실패: {}", partitionName);
         }
     }
 }
